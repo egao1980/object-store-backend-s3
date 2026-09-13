@@ -93,7 +93,20 @@
   (s3-http-request-headers req))
 
 (defun %header-value (headers name)
-  (cdr (assoc name headers :test #'string-equal)))
+  "Look up NAME in an alist or EQUAL hash-table (http-protocol lowercase keys)."
+  (let ((want (string-downcase (string name))))
+    (cond
+      ((null headers) nil)
+      ((hash-table-p headers)
+       (or (gethash name headers)
+           (gethash want headers)
+           (loop for k being the hash-keys of headers using (hash-value v)
+                 when (and (or (stringp k) (symbolp k))
+                           (string-equal (string k) want))
+                   return v)))
+      ((consp headers)
+       (cdr (assoc name headers :test #'string-equal)))
+      (t nil))))
 
 (defun %as-http-request (req)
   "Soft-use http-protocol:MAKE-HTTP-REQUEST when that system is loaded."
@@ -149,9 +162,7 @@
            (getf (if (listp response) response nil) :headers nil))))))
 
 (defun %etag-from-headers (headers)
-  (or (when (hash-table-p headers)
-        (or (gethash "etag" headers) (gethash "ETag" headers)))
-      (cdr (assoc "etag" headers :test #'string-equal))))
+  (%header-value headers "etag"))
 
 (defun %raise-http (backend key status body)
   (cond
@@ -240,7 +251,7 @@
          (make-object-stat
           :key key
           :etag (%etag-from-headers headers)
-          :content-type (or (cdr (assoc "content-type" headers :test #'string-equal))
+          :content-type (or (%header-value headers "content-type")
                             "application/octet-stream")))))))
 
 (defmethod list-objects ((store s3-backend) &key prefix continuation-token max-keys)
