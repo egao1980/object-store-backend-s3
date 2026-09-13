@@ -1,5 +1,5 @@
 (defsystem "object-store-backend-s3"
-  :version "0.1.0"
+  :version "0.1.1"
   :description "S3 / MinIO backend for object-store-protocol (SigV4; injectable HTTP)"
   :author "egao1980"
   :license "MIT"

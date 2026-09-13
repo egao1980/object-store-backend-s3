@@ -137,3 +137,37 @@
     (ok (search "AWS4-HMAC-SHA256"
                 (%assoc-val (%request-headers (first (last seen)))
                             "authorization")))))
+
+(deftest header-value-alist-and-hash-table
+  (ok (string= "text/plain"
+               (object-store-backend-s3::%header-value
+                '(("Content-Type" . "text/plain")) "content-type")))
+  (let ((ht (make-hash-table :test #'equal)))
+    (setf (gethash "content-type" ht) "application/json"
+          (gethash "etag" ht) "\"xyz\"")
+    (ok (string= "application/json"
+                 (object-store-backend-s3::%header-value ht "Content-Type")))
+    (ok (string= "\"xyz\""
+                 (object-store-backend-s3::%header-value ht "etag")))
+    (ok (string= "\"xyz\""
+                 (object-store-backend-s3::%etag-from-headers ht)))))
+
+(deftest head-object-hash-table-headers
+  "http-protocol RESPONSE-HEADERS is an EQUAL hash-table (dexador shape)."
+  (let* ((headers (make-hash-table :test #'equal))
+         (s3 (make-s3-backend
+              :endpoint "http://127.0.0.1:9000"
+              :region "us-east-1"
+              :access-key "AKID"
+              :secret-key "SECRET"
+              :bucket "b"
+              :http-fn (lambda (req)
+                         (declare (ignore req))
+                         (setf (gethash "etag" headers) "\"abc\""
+                               (gethash "content-type" headers) "text/plain")
+                         (list 200 #() headers)))))
+    (let ((stat (object-store-protocol:head-object s3 "k")))
+      (ok (object-store-protocol:object-stat-p stat))
+      (ok (string= "\"abc\"" (object-store-protocol:object-stat-etag stat)))
+      (ok (string= "text/plain"
+                   (object-store-protocol:object-stat-content-type stat))))))
