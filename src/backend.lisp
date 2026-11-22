@@ -81,8 +81,8 @@
         (let* ((qs (canonical-query query))
                (base (string-right-trim "/" (s3-backend-endpoint backend)))
                (url (if (plusp (length qs))
-                        (format nil "~a~a?~a" base path qs)
-                        (format nil "~a~a" base path))))
+                        (format nil "~a~a?~a" base (uri-encode-path path) qs)
+                        (format nil "~a~a" base (uri-encode-path path)))))
           (make-s3-http-request :method (intern (string-upcase (string method)) :keyword)
                                 :url url
                                 :headers signed-headers
@@ -164,6 +164,42 @@
 (defun %etag-from-headers (headers)
   (%header-value headers "etag"))
 
+(defun %body-text (body)
+  "Response BODY as text: UTF-8 (encoding-protocol), or NIL when it is not
+   valid UTF-8 (error messages must not fail on a binary body)."
+  (cond ((stringp body) body)
+        ((and (vectorp body) (plusp (length body)))
+         (handler-case (encoding-protocol:decode (utf8-octets body) :encoding :utf-8)
+           (encoding-protocol:encoding-error () nil)))
+        (t nil)))
+
+(defun %parse-xml (store key body)
+  "Parse an S3 XML response BODY (octets) with xml-protocol → root element."
+  (handler-case (xml-protocol:document-root-element
+                 (xml-protocol:decode-octets (utf8-octets body)))
+    (xml-protocol:xml-error (e)
+      (error 'object-store-error :key key :store store
+             :message (format nil "S3: malformed XML response: ~A" e)))))
+
+(defun %child-text (element name)
+  (let ((child (and element (xml-protocol:xml-child element name))))
+    (and child (xml-protocol:xml-element-text child))))
+
+(defun parse-list-objects-v2 (root)
+  "ListBucketResult element → OBJECT-LISTING (Contents, IsTruncated,
+   NextContinuationToken)."
+  (make-object-listing
+   :objects (loop for c in (xml-protocol:xml-children-named root "Contents")
+                  collect (let ((size (%child-text c "Size")))
+                            (make-object-stat
+                             :key (%child-text c "Key")
+                             :size (and size (parse-integer size :junk-allowed t))
+                             :etag (%child-text c "ETag")
+                             :last-modified (%child-text c "LastModified"))))
+   :continuation-token (%child-text root "NextContinuationToken")
+   :truncated-p (let ((s (%child-text root "IsTruncated")))
+                  (and s (string-equal (string-trim " " s) "true") t))))
+
 (defun %raise-http (backend key status body)
   (cond
     ((= status 404)
@@ -175,9 +211,7 @@
     ((>= status 400)
      (error 'object-store-error :key key :store backend
             :message (format nil "S3 HTTP ~a~@[ ~a~]" status
-                             (if (vectorp body)
-                                 (map 'string #'code-char body)
-                                 body))))
+                             (%body-text body))))
     (t nil)))
 
 (defmethod put-object ((store s3-backend) key data &key content-type metadata
@@ -265,7 +299,7 @@
          (resp (%invoke-http store req))
          (status (%response-status resp)))
     (%raise-http store nil status (%response-body resp))
-    (make-object-listing :objects nil :continuation-token nil :truncated-p nil)))
+    (parse-list-objects-v2 (%parse-xml store nil (%response-body resp)))))
 
 (defmethod presign-url ((store s3-backend) key &key (method :get) (expires 3600))
   (multiple-value-bind (amz-date date-stamp) (%amz-now)
@@ -287,7 +321,7 @@
                            (s3-backend-region store) sts))
            (qs (canonical-query (acons "X-Amz-Signature" sig query)))
            (base (string-right-trim "/" (s3-backend-endpoint store))))
-      (format nil "~a~a?~a" base path qs))))
+      (format nil "~a~a?~a" base (uri-encode-path path) qs))))
 
 (defmethod create-multipart-upload ((store s3-backend) key &key content-type metadata)
   (let* ((query (list (cons "uploads" "")))
@@ -296,12 +330,11 @@
                                 :extra-headers metadata))
          (resp (%invoke-http store req)))
     (%raise-http store key (%response-status resp) (%response-body resp))
-    (let ((body (map 'string #'code-char (%response-body resp))))
-      (let ((start (search "<UploadId>" body))
-            (end (search "</UploadId>" body)))
-        (if (and start end)
-            (subseq body (+ start 10) end)
-            body)))))
+    (let ((upload-id (%child-text (%parse-xml store key (%response-body resp)) "UploadId")))
+      (unless (and upload-id (plusp (length upload-id)))
+        (error 'object-store-error :key key :store store
+               :message "S3: InitiateMultipartUploadResult has no UploadId"))
+      upload-id)))
 
 (defmethod upload-part ((store s3-backend) key upload-id part-number data &key)
   (let* ((bytes (coerce-object-octets data))
@@ -313,17 +346,20 @@
     (or (%etag-from-headers (%response-headers resp)) "")))
 
 (defmethod complete-multipart-upload ((store s3-backend) key upload-id parts &key)
-  (let* ((xml (with-output-to-string (o)
-                (write-string "<CompleteMultipartUpload>" o)
-                (dolist (p parts)
-                  (let ((n (car p))
-                        (etag (if (consp (cdr p)) (cadr p) (cdr p))))
-                    (format o "<Part><PartNumber>~a</PartNumber><ETag>~a</ETag></Part>"
-                            n etag)))
-                (write-string "</CompleteMultipartUpload>" o)))
+  (let* ((xml (xml-protocol:encode-to-octets
+               (apply #'xml-protocol:make-xml-element "CompleteMultipartUpload" nil
+                      (loop for p in parts
+                            collect (xml-protocol:make-xml-element
+                                     "Part" nil
+                                     (xml-protocol:make-xml-element
+                                      "PartNumber" nil (princ-to-string (car p)))
+                                     (xml-protocol:make-xml-element
+                                      "ETag" nil (princ-to-string
+                                                  (if (consp (cdr p)) (cadr p) (cdr p)))))))
+               :pretty nil))
          (query (list (cons "uploadId" upload-id)))
          (req (build-s3-request store :method :post :key key :query query
-                                :body (utf8-octets xml)
+                                :body xml
                                 :content-type "application/xml"))
          (resp (%invoke-http store req)))
     (%raise-http store key (%response-status resp) (%response-body resp))

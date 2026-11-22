@@ -2,7 +2,7 @@
 
 S3 / MinIO backend for [`object-store-protocol`](https://github.com/egao1980/object-store-protocol). Builds signed HTTP requests (AWS SigV4). Does **not** require a live MinIO for unit tests — inject `http-fn`.
 
-HMAC-SHA256 is **soft-use**: `crypto-protocol:hmac` when `*crypto-backend*` is bound, else Ironclad, else the documented internal SHA-256 + HMAC in `src/hmac.lisp`.
+SHA-256 and HMAC-SHA256 come from `crypto-protocol` (`crypto-backend-ironclad`), UTF-8, hex and RFC 3986 percent-encoding (non-ASCII keys sign and address correctly) from `encoding-protocol`, and S3 XML (ListObjectsV2, multipart) is parsed and written with `xml-protocol`.
 
 ```lisp
 (asdf:load-system "object-store-backend-s3")

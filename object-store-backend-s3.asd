@@ -1,9 +1,14 @@
 (defsystem "object-store-backend-s3"
-  :version "0.1.1"
+  :version "0.1.2"
   :description "S3 / MinIO backend for object-store-protocol (SigV4; injectable HTTP)"
   :author "egao1980"
   :license "MIT"
-  :depends-on ("object-store-protocol")
+  :depends-on ("object-store-protocol"
+               (:version "encoding-protocol" "0.3.0")
+               "crypto-protocol"
+               "crypto-backend-ironclad"
+               "xml-protocol"
+               "xml-backend-native")
   :serial t
   :pathname "src"
   :components ((:file "package")
