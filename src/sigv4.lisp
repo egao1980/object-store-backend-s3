@@ -4,16 +4,11 @@
 ;;; CANONICAL-REQUEST, STRING-TO-SIGN, SIGNATURE, AUTHORIZATION-HEADER.
 
 (defun uri-encode (string &key (encode-slash t))
-  "RFC 3986 percent-encoding used by SigV4. Unreserved: A-Z a-z 0-9 - . _ ~."
-  (with-output-to-string (out)
-    (loop for c across (string string)
-          for code = (char-code c)
-          do (cond
-               ((or (alphanumericp c) (find c "-._~"))
-                (write-char c out))
-               ((and (char= c #\/) (not encode-slash))
-                (write-char c out))
-               (t (format out "%~2,'0X" code))))))
+  "RFC 3986 percent-encoding used by SigV4 (encoding-protocol:percent-encode):
+   the UTF-8 octets of STRING, with only ASCII A-Z a-z 0-9 - . _ ~ unescaped
+   (plus / when ENCODE-SLASH is NIL) and upper-case %XX for the rest."
+  (encoding-protocol:percent-encode (string string)
+                                    :safe (if encode-slash "" "/")))
 
 (defun uri-encode-path (path)
   (if (or (null path) (string= path ""))
