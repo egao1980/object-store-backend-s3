@@ -28,7 +28,7 @@ SHA-256 and HMAC-SHA256 come from `crypto-protocol` (`crypto-backend-ironclad`).
 
 Explicit `:access-key` / `:secret-key` (+ `:session-token`) win. Otherwise the first request walks `*s3-credential-providers*` and keeps the result on the backend:
 
-1. `environment-credentials`: `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (+ `AWS_SESSION_TOKEN`, or the legacy `AWS_SECURITY_TOKEN`).
+1. `environment-credentials`: `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (+ `AWS_SESSION_TOKEN`, or the legacy `AWS_SECURITY_TOKEN`). Skipped when the backend has an explicit `:profile`, as `boto3.Session(profile_name=...)` and `aws --profile` skip it. A profile that comes from `AWS_PROFILE` keeps the environment keys first.
 2. `shared-credentials-file-credentials`: `AWS_SHARED_CREDENTIALS_FILE`, else `~/.aws/credentials`, in section `[PROFILE]`.
 3. `config-file-credentials`: `AWS_CONFIG_FILE`, else `~/.aws/config`, in `[default]` / `[profile PROFILE]`.
 

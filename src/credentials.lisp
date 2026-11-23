@@ -58,12 +58,15 @@
 
 (defun environment-credentials (backend)
   "AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (+ AWS_SESSION_TOKEN, or the
-   legacy AWS_SECURITY_TOKEN)."
-  (declare (ignore backend))
-  (%credentials-or-partial "the environment"
-                           (%env "AWS_ACCESS_KEY_ID")
-                           (%env "AWS_SECRET_ACCESS_KEY")
-                           (or (%env "AWS_SESSION_TOKEN") (%env "AWS_SECURITY_TOKEN"))))
+   legacy AWS_SECURITY_TOKEN). Passes when BACKEND names a :profile: an
+   explicit profile drops the environment provider, as botocore's
+   create_credential_resolver does for Session(profile_name=...) and
+   `aws --profile`. A profile taken from AWS_PROFILE leaves it first."
+  (unless (s3-backend-profile backend)
+    (%credentials-or-partial "the environment"
+                             (%env "AWS_ACCESS_KEY_ID")
+                             (%env "AWS_SECRET_ACCESS_KEY")
+                             (or (%env "AWS_SESSION_TOKEN") (%env "AWS_SECURITY_TOKEN")))))
 
 (defun shared-credentials-file-credentials (backend)
   "The profile's section of AWS_SHARED_CREDENTIALS_FILE, else ~/.aws/credentials."
@@ -108,7 +111,8 @@
         (dolist (provider *s3-credential-providers*
                           (error 'object-store-error
                                  :store backend
-                                 :message (format nil "S3: no AWS credentials. Pass :access-key / :secret-key, set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, or add [~A] to ~~/.aws/credentials"
+                                 :message (format nil "S3: no AWS credentials. Pass :access-key / :secret-key, ~:[set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, ~;~]or add [~A] to ~~/.aws/credentials"
+                                                  (s3-backend-profile backend)
                                                   (%profile-name backend))))
           (multiple-value-bind (key secret token) (funcall provider backend)
             (when key
