@@ -18,11 +18,12 @@
   :in-order-to ((test-op (test-op "object-store-backend-s3/tests"))))
 
 (defsystem "object-store-backend-s3/tests"
-  :depends-on ("object-store-backend-s3" "rove")
+  :depends-on ("object-store-backend-s3" "http-protocol" "rove")
   :pathname "tests"
   :serial t
   :components ((:file "package")
-               (:file "signing-test"))
+               (:file "signing-test")
+               (:file "defaults-test"))
   :perform (test-op (o c)
              (unless (symbol-call :rove :run c)
                (error "tests failed for ~A" (component-name c)))))
