@@ -1,6 +1,6 @@
 # object-store-backend-s3
 
-S3 / MinIO backend for [`object-store-protocol`](https://github.com/egao1980/object-store-protocol). It builds signed HTTP requests (AWS SigV4) and sends them through [`http-protocol`](https://github.com/egao1980/http-protocol) by default, or through an `http-fn` you inject. The unit tests need no live MinIO. **OCI: 0.2.0.**
+S3 / MinIO backend for [`object-store-protocol`](https://github.com/egao1980/object-store-protocol). It builds signed HTTP requests (AWS SigV4) and sends them through [`http-protocol`](https://github.com/egao1980/http-protocol) by default, or through an `http-fn` you inject. The unit tests need no live MinIO. **OCI: 0.2.1.**
 
 SHA-256 and HMAC-SHA256 come from `crypto-protocol` (`crypto-backend-ironclad`). UTF-8, hex and RFC 3986 percent-encoding come from `encoding-protocol`, so non-ASCII keys sign and address correctly. S3 XML (ListObjectsV2, multipart) is parsed and written with `xml-protocol`. `~/.aws/credentials` and `~/.aws/config` are read with `cl-stack-config`'s `parse-ini` (0.3.1 or later), which reads them as botocore does (`configparser.RawConfigParser`): comments are whole lines only, so a secret may hold `#` and `;`, and option names are lowercased.
 

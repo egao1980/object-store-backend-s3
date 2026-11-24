@@ -1,5 +1,5 @@
 (defsystem "object-store-backend-s3"
-  :version "0.2.0"
+  :version "0.2.1"
   :description "S3 / MinIO backend for object-store-protocol (SigV4; injectable HTTP)"
   :author "egao1980"
   :license "MIT"
@@ -32,7 +32,8 @@
                (:file "defaults-test")
                (:file "credentials-edge-test")
                (:file "profile-precedence-test")
-               (:file "ini-compat-test"))
+               (:file "ini-compat-test")
+               (:file "head-object-test"))
   :perform (test-op (o c)
              (unless (symbol-call :rove :run c)
                (error "tests failed for ~A" (component-name c)))))

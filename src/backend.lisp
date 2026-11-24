@@ -200,6 +200,16 @@
 (defun %etag-from-headers (headers)
   (%header-value headers "etag"))
 
+(defun %content-length (headers)
+  "Content-Length of HEADERS as an integer (a header value may be a string
+   or, from some backends, an integer); 0 when it is missing or not a
+   number."
+  (let ((value (%header-value headers "content-length")))
+    (or (typecase value
+          ((integer 0) value)
+          (string (parse-integer value :junk-allowed t)))
+        0)))
+
 (defun %body-text (body)
   "Response BODY as text: UTF-8 (encoding-protocol), or NIL when it is not
    valid UTF-8 (error messages must not fail on a binary body)."
@@ -310,6 +320,9 @@
        t))))
 
 (defmethod head-object ((store s3-backend) key &key)
+  "OBJECT-STAT of KEY from a HEAD request: size from Content-Length,
+   etag, content type and Last-Modified (botocore head_object's
+   ContentLength, ETag, ContentType, LastModified)."
   (call-with-object-store-retry
    (lambda ()
      (let* ((req (build-s3-request store :method :head :key key))
@@ -325,9 +338,11 @@
        (let ((headers (%response-headers resp)))
          (make-object-stat
           :key key
+          :size (%content-length headers)
           :etag (%etag-from-headers headers)
           :content-type (or (%header-value headers "content-type")
-                            "application/octet-stream")))))))
+                            "application/octet-stream")
+          :last-modified (%header-value headers "last-modified")))))))
 
 (defmethod list-objects ((store s3-backend) &key prefix continuation-token max-keys)
   (let* ((query (append (when prefix (list (cons "prefix" prefix)))
