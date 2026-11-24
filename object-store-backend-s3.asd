@@ -11,8 +11,9 @@
                "xml-backend-native"
                ;; the default http-fn (send-with-http-protocol)
                "http-protocol"
-               ;; ~/.aws/credentials and ~/.aws/config (parse-ini)
-               "cl-stack-config")
+               ;; ~/.aws/credentials and ~/.aws/config: parse-ini reads them
+               ;; as configparser does from 0.3.1 (cl-stack-config#10)
+               (:version "cl-stack-config" "0.3.1"))
   :serial t
   :pathname "src"
   :components ((:file "package")
