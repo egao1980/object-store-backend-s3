@@ -9,6 +9,16 @@
            #:s3-backend-secret-key
            #:s3-backend-bucket
            #:s3-backend-http-fn
+           #:s3-backend-session-token
+           #:s3-backend-profile
+
+           ;; credentials (botocore chain) and the default http-fn
+           #:s3-backend-credentials
+           #:*s3-credential-providers*
+           #:environment-credentials
+           #:shared-credentials-file-credentials
+           #:config-file-credentials
+           #:send-with-http-protocol
 
            #:octets-to-hex
            #:utf8-octets
